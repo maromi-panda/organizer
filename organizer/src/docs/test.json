@@ -1,0 +1,9 @@
+{
+   "name" : "MongoDB",
+   "type" : "database",
+   "count" : 1,
+   "info" : {
+               x : 203,
+               y : 102
+             }
+}
