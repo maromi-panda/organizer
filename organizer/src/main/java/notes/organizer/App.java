@@ -1,62 +1,60 @@
 package notes.organizer;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
+import com.mongodb.gridfs.GridFS;
+import com.mongodb.gridfs.GridFSDBFile;
+import com.mongodb.gridfs.GridFSInputFile;
 
 /**
  * Hello world!
  * 
  */
 public class App {
-	public static void main(String[] args) throws UnknownHostException {
-		System.out.println("Hello World!");// connect to the local database server
-        MongoClient mongoClient = new MongoClient();
+	public static void main(String[] args) throws Exception {
 
-        /*
-        // Authenticate - optional
-        MongoCredential credential = MongoCredential.createMongoCRCredential(userName, database, password);
-        MongoClient mongoClient = new MongoClient(new ServerAddress(), Arrays.asList(credential));
-        */
+		// connect to the local database server
+        MongoClient mongoClient = new MongoClient();
 
         // get handle to "mydb"
         DB db = mongoClient.getDB("mydb");
 
         // get a list of the collections in this database and print them out
         Set<String> collectionNames = db.getCollectionNames();
+        System.out.println("Printing collection names...");
         for (final String s : collectionNames) {
             System.out.println(s);
         }
 
         // get a collection object to work with
         DBCollection coll = db.getCollection("testCollection");
+        
+        System.out.println("Printing collection names again...");
+        for (final String s : collectionNames) {
+            System.out.println(s);
+        }
 
         // drop all the data in it
         coll.drop();
 
-        // make a document and insert it
-        BasicDBObject doc = new BasicDBObject("name", "MongoDB")
-                .append("type", "database")
-                .append("count", 1)
-                .append("info", new BasicDBObject("x", 203).append("y", 102));
-
-        coll.insert(doc);
-
-        // get it (since it's the only one in there since we dropped the rest earlier on)
-        DBObject myDoc = coll.findOne();
-        System.out.println(myDoc);
-
         // now, lets add lots of little documents to the collection so we can explore queries and cursors
-        for (int i = 0; i < 10; i++) {
-            coll.insert(new BasicDBObject().append("i", i));
+        char value = 'a';
+        for (int i = 1; i <= 10; i++) {
+            coll.insert(new BasicDBObject().append("name", i).append("value", value));
+            value += 1;
         }
-        System.out.println("total # of documents after inserting 100 small ones (should be 101) " + coll.getCount());
+        System.out.println("total # of documents after inserting 10 small ones (should be 10): " + coll.getCount());
 
         // lets get all the documents in the collection and print them out
         DBCursor cursor = coll.find();
@@ -69,8 +67,8 @@ public class App {
         }
 
         // now use a query to get 1 document out
-        BasicDBObject query = new BasicDBObject("i", 7);
-        cursor = coll.find(query);
+        BasicDBObject basicDBObject = new BasicDBObject("name", 7);
+        cursor = coll.find(basicDBObject);
 
         try {
             while (cursor.hasNext()) {
@@ -81,12 +79,28 @@ public class App {
         }
 
         // $ Operators are represented as strings
-        query = new BasicDBObject("j", new BasicDBObject("$ne", 3))
-                .append("k", new BasicDBObject("$gt", 10));
-
-        cursor = coll.find(query);
+        basicDBObject = new BasicDBObject("name", new BasicDBObject("$gt", 7)
+                .append("$lte", 10));
+        cursor = coll.find(basicDBObject);
 
         try {
+        	System.out.println("Printing documents greater than 7 and less than 10");
+            while(cursor.hasNext()) {
+                System.out.println(cursor.next());
+            }
+        } finally {
+            cursor.close();
+        }
+        
+        List<BasicDBObject> obj = new ArrayList<BasicDBObject>();
+        obj.add(new BasicDBObject("name", new BasicDBObject("$gt", 4)));
+        obj.add(new BasicDBObject("name", new BasicDBObject("$ne", 7)));
+        basicDBObject = new BasicDBObject();
+        basicDBObject.put("$and", obj);
+        cursor = coll.find(basicDBObject);
+
+        try {
+        	System.out.println("Printing documents greater than 4 and not equal to 7");
             while(cursor.hasNext()) {
                 System.out.println(cursor.next());
             }
@@ -94,11 +108,16 @@ public class App {
             cursor.close();
         }
 
-        // now use a range query to get a larger subset
-        // find all where i > 50
-        query = new BasicDBObject("i", new BasicDBObject("$gt", 50));
-        cursor = coll.find(query);
-
+        // Fetch an object and update it
+        basicDBObject = new BasicDBObject("name", new BasicDBObject("$eq", 6));
+        cursor = coll.find(basicDBObject);
+        while(cursor.hasNext()) {
+        	BasicDBObject updateBasicDBObject = new BasicDBObject().append("name", 100).append("value", "z");
+        	coll.update((BasicDBObject)cursor.next(), updateBasicDBObject);
+        }
+        
+        System.out.println("Printing documents after updation...");
+        cursor = coll.find();
         try {
             while (cursor.hasNext()) {
                 System.out.println(cursor.next());
@@ -106,5 +125,27 @@ public class App {
         } finally {
             cursor.close();
         }
+        
+        // Something serious now
+        
+        //Create GridFS object
+        GridFS fs = new GridFS( db );
+        
+        File file = new File("D:/Personal/Organizer/Untitled.png");
+        
+        //Save image into database
+        GridFSInputFile in = fs.createFile( file );
+        in.setFilename("my photo");
+        in.save();
+
+        //Find saved image
+        GridFSDBFile out = fs.findOne("my photo");
+        System.out.println("Image from db : " +out);
+
+        //Save loaded image from database into new image file
+        FileOutputStream outputImage = new FileOutputStream("D:/Personal/Organizer/Maromi.png");
+        out.writeTo( outputImage );
+        
+        outputImage.close();
 	}
 }
